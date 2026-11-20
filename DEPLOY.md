@@ -76,6 +76,7 @@ Importante: `wp-content` raíz (con sus uploads) queda en el respaldo; las imág
 
 Abre en ventana privada:
 
+- [ ] Anota la versión de PHP del dominio en cPanel > **MultiPHP Manager**, antes y después del cambio; debe ser 8.1 o superior y no cambiar.
 - [ ] `/`, `/nosotros/`, `/formaciones/`, `/cursos/`, `/diplomados/`, `/seminarios/`, `/convenios/`, `/postula/`, `/contacto/`, `/politica-de-privacidad/`: cargan con estilos e imágenes.
 - [ ] `/robots.txt` y `/sitemap.xml` responden.
 - [ ] `/loquesea/` muestra la página 404 del sitio.
@@ -84,7 +85,7 @@ Abre en ventana privada:
 - [ ] `/tienda/` carga la tienda; `/tienda/wp-login.php` carga; el panel `/tienda/wp-admin/` entra con tus credenciales.
 - [ ] **Compra de prueba**: en Micuentaweb cambia a **modo TEST** (Back Office > Configuración > Tienda > Modo TEST), usa tarjeta de prueba del PSP, completa un pedido en `/tienda/checkout/` y verifica que el pedido pasa a *Procesando/Completado* y llega el correo. **Vuelve a modo PRODUCCIÓN al terminar**.
 - [ ] **Moodle**: con un usuario de prueba, comprueba que el pedido de prueba lo matricula en el curso (y el correo de matrícula del tema hijo). Elimina/anula el pedido y el usuario de prueba después.
-- [ ] **Libro de reclamaciones**: en `/libro-de-reclamaciones/` envía un reclamo de prueba; debe llegar el PDF al correo ingresado y copia a `reclamaciones@`. Si no llega: revisa `api/storage/log/claims.log` (File Manager) y la contraseña/host SMTP del paso 1.
+- [ ] **Libro de reclamaciones**: en `/libro-de-reclamaciones/` envía un reclamo de prueba; deben llegar DOS correos: uno a `reclamaciones@` (aviso a la empresa, con el PDF) y otro al correo ingresado (con el PDF); son independientes. Si no llega el de la empresa, queda un archivo en `api/storage/pendientes/` (ver `src/public/api/README.md`). Si no llega: revisa `api/storage/log/claims.log` (File Manager) y la contraseña/host SMTP del paso 1.
 - [ ] Tras 10 minutos: Search Console / Analytics sin picos de 404.
 
 Notas:
@@ -94,23 +95,33 @@ Notas:
 
 ## 6. ROLLBACK (volver al WordPress anterior)
 
+> **ATENCIÓN: `api/storage/` contiene los reclamos (PDF/JSON) y el correlativo `counter.dat`: son registros legales que se conservan 2 años (Art. 12, D.S. 011-2011-PCM). NUNCA los muevas, borres ni sobrescribas, y nunca borres `counter.dat`. Tampoco muevas `api/config.secret.php`.**
+
 Cuando quieras deshacer (todo está en `_backup_wp_root`):
 
 ```bash
 cd /home/corpor46/somosescuelacapacita.com
-# 1) quita lo que puso el sitio estático en la raíz (NO toques tienda/, .well-known/, cgi-bin/)
+# 0) respaldo extra de estado (copia, no mueve) por si algo sale mal
+mkdir -p /home/corpor46/_backup_api_state
+cp -a api/storage /home/corpor46/_backup_api_state/ && cp -a api/config.secret.php /home/corpor46/_backup_api_state/
+# 1) quita lo que puso el sitio estático en la raíz (NO toques tienda/, .well-known/, cgi-bin/, api/storage ni api/config.secret.php)
 mkdir -p /home/corpor46/_backup_static
-for f in index.html 404.html robots.txt sitemap.xml .htaccess api assets contacto convenios cursos \
-         diplomados formaciones libro-de-reclamaciones nosotros politica-de-privacidad postula seminarios; do
+for f in index.html 404.html robots.txt sitemap.xml .htaccess assets contacto convenios cursos          diplomados formaciones libro-de-reclamaciones nosotros politica-de-privacidad postula seminarios; do
   [ -e "$f" ] && mv -v "$f" /home/corpor46/_backup_static/
+done
+# 1b) de api/ mueve SOLO el código; storage/ y config.secret.php se quedan en su sitio
+mkdir -p /home/corpor46/_backup_static/api
+for f in api/* api/.[!.]*; do
+  case "$f" in api/storage|api/config.secret.php) continue;; esac
+  [ -e "$f" ] && mv -v "$f" /home/corpor46/_backup_static/api/
 done
 # 2) devuelve el WordPress viejo (incluye .htaccess original)
 cd /home/corpor46/_backup_wp_root && for f in * .[!.]*; do [ -e "$f" ] && mv -v "$f" /home/corpor46/somosescuelacapacita.com/; done
 ```
 
-Verifica `/` (WordPress) y `/tienda/`. La base `corpor46_wp536` nunca se tocó. Para recuperar todo desde cero usa el *Full Backup* del paso 0.
+Verifica `/` (WordPress) y `/tienda/`, y que `api/storage/` y `api/config.secret.php` siguen en su sitio (el WordPress viejo no los usa; déjalos ahí). La base `corpor46_wp536` nunca se tocó. Para recuperar todo desde cero usa el *Full Backup* del paso 0.
 
-Para volver a poner el sitio estático después: repite 3 y 4.
+Para volver a poner el sitio estático después: repite 3 y 4. Como `storage/` y `config.secret.php` no se movieron, el correlativo y los reclamos archivados continúan; no hace falta recrearlos. Si por error se movieron, restáuralos desde `_backup_api_state/` **antes** de recibir nuevos reclamos.
 
 ## Mantenimiento habitual
 

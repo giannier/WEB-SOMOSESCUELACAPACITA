@@ -169,34 +169,115 @@ try {
 }
 
 // 10. Archive BEFORE sending: if SMTP fails the claim is not lost (Art. 12: 2 years)
-$dir = $config['storage'] . '/hojas/' . date('Y');
-if (!is_dir($dir)) {
-    mkdir($dir, 0750, true);
+// Exclusive-create: an existing sheet is never overwritten. If the archive cannot
+// be written the claim is NOT confirmed, nothing is e-mailed and the token is kept
+// so the user can retry.
+function writeNew(string $path, string $content): bool
+{
+    $fp = @fopen($path, 'x');
+    if ($fp === false) {
+        return false;
+    }
+    $ok = flock($fp, LOCK_EX)
+        && fwrite($fp, $content) === strlen($content)
+        && fflush($fp);
+    fclose($fp);
+    if (!$ok) {
+        @unlink($path);
+    }
+    return $ok;
 }
-@file_put_contents($dir . '/' . $claimNumber . '.pdf', $pdf, LOCK_EX);
-@file_put_contents(
-    $dir . '/' . $claimNumber . '.json',
-    json_encode($sheet + ['ip_hash' => $security->ipFingerprint($ip)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
-    LOCK_EX
-);
+
+/** Atomic replace (temp file in the same directory + rename). */
+function replaceFile(string $path, string $content): bool
+{
+    $tmp = $path . '.tmp' . getmypid();
+    if (file_put_contents($tmp, $content, LOCK_EX) !== strlen($content) || !rename($tmp, $path)) {
+        @unlink($tmp);
+        return false;
+    }
+    return true;
+}
+
+function unarchivable(array $config, string $claimNumber, string $why): never
+{
+    note($config, 'ERROR', $claimNumber . ' NOT archived (' . $why . '); no e-mail sent, claim not confirmed');
+    respond(500, ['ok' => false, 'message' => 'No pudimos registrar el reclamo. Inténtalo en unos minutos.']);
+}
+
+$dir = $config['storage'] . '/hojas/' . date('Y');
+if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+    unarchivable($config, $claimNumber, 'cannot create archive directory');
+}
+$pdfPath = $dir . '/' . $claimNumber . '.pdf';
+$jsonPath = $dir . '/' . $claimNumber . '.json';
+$record = $sheet + ['ip_hash' => $security->ipFingerprint($ip)];
+$encode = fn(array $r) => json_encode($r, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+$json = $encode($record);
+if ($json === false) {
+    unarchivable($config, $claimNumber, 'cannot encode sheet');
+}
+if (!writeNew($pdfPath, $pdf)) {
+    unarchivable($config, $claimNumber, 'cannot write PDF (unwritable or already exists)');
+}
+if (!writeNew($jsonPath, $json)) {
+    @unlink($pdfPath);
+    unarchivable($config, $claimNumber, 'cannot write JSON (unwritable or already exists)');
+}
 $security->consumeToken();
 
-// 11. Send ------------------------------------------------------------------
+// 11. Send: company first, consumer second, independently ---------------------
 $notifier = new Notifier($config);
-$sent = false;
-if (!$notifier->configured()) {
-    note($config, 'ERROR', $claimNumber . ' NOT sent: SMTP password missing (config.secret.php)');
-} else {
-    try {
-        $result = $notifier->send($sheet, $pdf);
-        $sent = true;
-        note($config, 'OK', $claimNumber . ($notifier->dryRun() ? ' DRY-RUN e-mail written to ' . basename($result) : ' sent to ' . $sheet['email']));
-    } catch (Throwable $e) {
-        note($config, 'ERROR', $claimNumber . ' send failed: ' . $e->getMessage());
+$notifications = [];
+foreach (['company' => 'sendCompany', 'consumer' => 'sendConsumer'] as $who => $method) {
+    $entry = ['at' => date('c')];
+    if (!$notifier->configured()) {
+        $entry['state'] = 'skipped';
+        $entry['error_class'] = 'SmtpNotConfigured';
+        note($config, 'ERROR', "$claimNumber $who e-mail NOT sent: SMTP password missing (config.secret.php)");
+    } else {
+        try {
+            $result = $notifier->$method($sheet, $pdf);
+            if ($notifier->dryRun()) {
+                $entry['state'] = 'dry_run';
+                note($config, 'OK', "$claimNumber $who DRY-RUN e-mail written to " . basename($result));
+            } else {
+                $entry['state'] = 'sent';
+                note($config, 'OK', "$claimNumber $who e-mail sent");
+            }
+        } catch (Throwable $e) {
+            $entry['state'] = 'failed';
+            $entry['error_class'] = get_class($e->getPrevious() ?? $e); // class only: no server detail or secrets
+            note($config, 'ERROR', "$claimNumber $who send failed: " . $e->getMessage());
+        }
+    }
+    $notifications[$who] = $entry;
+}
+
+// Persist delivery state in the archived JSON (atomic rewrite).
+if (!replaceFile($jsonPath, (string) $encode($record + ['notifications' => $notifications]))) {
+    note($config, 'ERROR', $claimNumber . ' could not record delivery state in the archive');
+}
+
+// Unsent company notification: marker so an operator finds it with one `ls storage/pendientes`.
+if (!in_array($notifications['company']['state'], ['sent', 'dry_run'], true)) {
+    $pending = $config['storage'] . '/pendientes';
+    $marker = json_encode([
+        'claim_number' => $claimNumber,
+        'company'      => $notifications['company'],
+        'consumer'     => $notifications['consumer'],
+        'sheet'        => 'hojas/' . date('Y') . '/' . $claimNumber . '.json',
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ((!is_dir($pending) && !mkdir($pending, 0750, true) && !is_dir($pending))
+        || $marker === false || !replaceFile($pending . '/' . $claimNumber . '.json', $marker)) {
+        note($config, 'ERROR', $claimNumber . ' could not write the pending marker');
+    } else {
+        note($config, 'PENDING', $claimNumber . ' company notification not delivered; marker in storage/pendientes/');
     }
 }
 
 // The claim is registered even if the e-mail fails; the failure is in the log.
+$sent = $notifications['consumer']['state'] === 'sent';
 respond(200, [
     'ok'           => true,
     'claim_number' => $claimNumber,

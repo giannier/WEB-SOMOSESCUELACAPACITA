@@ -2,9 +2,9 @@
 /**
  * Sends the Hoja de Reclamación by e-mail.
  *
- * One message: To the consumer, BCC to the company mailbox (so the internal
- * address is not exposed to the consumer). With smtp.dry_run the full MIME
- * message (PDF attached) is written to storage/correo/ and nothing is sent.
+ * Two independent messages (company first, then consumer), each with the PDF.
+ * With smtp.dry_run the full MIME
+ * messages are written to storage/correo/<claim>-<empresa|consumidor>.eml, nothing is sent.
  */
 
 declare(strict_types=1);
@@ -42,10 +42,29 @@ final class Notifier
     }
 
     /**
+     * Company notification: its own message to the internal mailbox, PDF attached.
+     * Independent of the consumer copy so a failure of one never blocks the other.
+     *
      * @return string 'sent' or the path of the .eml written in dry-run mode
      * @throws RuntimeException when sending fails
      */
-    public function send(array $sheet, string $pdf): string
+    public function sendCompany(array $sheet, string $pdf): string
+    {
+        return $this->deliver($sheet, $pdf, 'empresa');
+    }
+
+    /**
+     * Consumer copy (Reply-To = company mailbox).
+     *
+     * @return string 'sent' or the path of the .eml written in dry-run mode
+     * @throws RuntimeException when sending fails
+     */
+    public function sendConsumer(array $sheet, string $pdf): string
+    {
+        return $this->deliver($sheet, $pdf, 'consumidor');
+    }
+
+    private function deliver(array $sheet, string $pdf, string $kind): string
     {
         if (!$this->configured()) {
             throw new RuntimeException('SMTP password is not configured.');
@@ -73,15 +92,21 @@ final class Notifier
             }
 
             $mail->setFrom($this->smtp['username'], $this->smtp['from_name']);
-            $mail->addAddress($sheet['email'], $sheet['name']);
-            $mail->addBCC($this->smtp['internal_bcc']);
-            // The consumer's replies land in the company mailbox.
-            $mail->addReplyTo($this->smtp['internal_bcc'], $this->provider['trade_name']);
-
-            $mail->Subject = sprintf('%s %s registrado - %s', $sheet['claim_type'], $sheet['claim_number'], $this->provider['trade_name']);
-            $mail->isHTML(true);
-            $mail->Body = $this->htmlBody($sheet);
-            $mail->AltBody = $this->textBody($sheet);
+            if ($kind === 'empresa') {
+                $mail->addAddress($this->smtp['internal_bcc']);
+                $mail->addReplyTo($sheet['email'], $sheet['name']);
+                $mail->Subject = sprintf('[Nuevo reclamo] %s %s - %s', $sheet['claim_type'], $sheet['claim_number'], $sheet['name']);
+                $mail->isHTML(false);
+                $mail->Body = $this->companyBody($sheet);
+            } else {
+                $mail->addAddress($sheet['email'], $sheet['name']);
+                // The consumer's replies land in the company mailbox.
+                $mail->addReplyTo($this->smtp['internal_bcc'], $this->provider['trade_name']);
+                $mail->Subject = sprintf('%s %s registrado - %s', $sheet['claim_type'], $sheet['claim_number'], $this->provider['trade_name']);
+                $mail->isHTML(true);
+                $mail->Body = $this->htmlBody($sheet);
+                $mail->AltBody = $this->textBody($sheet);
+            }
             $mail->addStringAttachment(
                 $pdf,
                 'Hoja-de-Reclamacion-' . $sheet['claim_number'] . '.pdf',
@@ -92,11 +117,13 @@ final class Notifier
             if ($this->dryRun()) {
                 $mail->preSend(); // builds the MIME message without connecting
                 $dir = $this->storage . '/correo';
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0750, true);
+                if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+                    throw new RuntimeException('Cannot create the dry-run mail directory.');
                 }
-                $path = $dir . '/' . $sheet['claim_number'] . '.eml';
-                file_put_contents($path, $mail->getSentMIMEMessage(), LOCK_EX);
+                $path = $dir . '/' . $sheet['claim_number'] . '-' . $kind . '.eml';
+                if (file_put_contents($path, $mail->getSentMIMEMessage(), LOCK_EX) === false) {
+                    throw new RuntimeException('Cannot write the dry-run message.');
+                }
                 return $path;
             }
 
@@ -106,6 +133,23 @@ final class Notifier
             // PHPMailer messages may include server details: log only, never show.
             throw new RuntimeException('SMTP failure: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    private function companyBody(array $h): string
+    {
+        return implode("\n", [
+            'Nuevo reclamo registrado en el Libro de Reclamaciones.',
+            '',
+            'Número: ' . $h['claim_number'],
+            'Tipo: ' . $h['claim_type'],
+            'Fecha de registro: ' . $h['date_long'],
+            'Consumidor: ' . $h['name'] . ' (' . $h['document_type'] . ' ' . $h['document_number'] . ')',
+            'Correo del consumidor: ' . $h['email'],
+            'Bien contratado: ' . $h['item_type'] . ' - ' . $h['item_description'],
+            '',
+            'La Hoja de Reclamación completa va adjunta en PDF.',
+            'Plazo de respuesta: ' . $this->responseDays . ' días hábiles (Ley 29571, art. 24).',
+        ]);
     }
 
     private function htmlBody(array $h): string
