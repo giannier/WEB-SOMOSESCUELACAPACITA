@@ -1,0 +1,12 @@
+/* Privacy policy page: extends the .lr-page legal layout (libro-reclamaciones.css) */
+.lr-page .pp-updated { color: var(--lr-gray); font-size: .9rem; margin: 0 0 8px; }
+.lr-page .pp-section h2 { font-size: 1.2rem; margin: 32px 0 8px; padding-top: 8px; border-top: 1px solid var(--lr-line); }
+.lr-page .pp-section h3 { font-family: "Montserrat", sans-serif; color: var(--lr-purple); font-size: 1rem; margin: 18px 0 6px; }
+.lr-page .pp-section ul { margin: 8px 0 12px; padding-left: 22px; }
+.lr-page .pp-section li { margin: 4px 0; }
+.lr-page .pp-section h2, .lr-page .pp-section h3 { text-transform: none; }
+.lr-page a { color: var(--lr-purple); text-decoration: underline; }
+.lr-page .pp-data { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .95rem; }
+.lr-page .pp-data th, .lr-page .pp-data td { border: 1px solid var(--lr-line); padding: 8px 12px; text-align: left; vertical-align: top; }
+.lr-page .pp-data th { background: var(--lr-tint); color: var(--lr-purple); font-family: "Montserrat", sans-serif; width: 32%; }
+@media (max-width: 600px) { .lr-page .pp-data th { width: 38%; } }

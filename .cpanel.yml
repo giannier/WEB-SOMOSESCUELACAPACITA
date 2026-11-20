@@ -1,0 +1,13 @@
+# cPanel > Git Version Control > "Deploy HEAD Commit".
+# The repo is cloned OUTSIDE the docroot (/home/corpor46/repos/somosescuelacapacita).
+# Only `cp` is used: nothing is ever deleted, so server-only files survive every deploy
+# (api/config.secret.php, api/storage/ runtime data, tienda/ core, plugins, uploads, wp-config.php).
+deployment:
+  tasks:
+    - export SITE=/home/corpor46/somosescuelacapacita.com
+    # 1) Static site: dist/ (committed build output) on top of the docroot
+    - /bin/cp -R dist/. $SITE/
+    # 2) Shop custom code only (child theme + mu-plugin); the rest of /tienda is untouched
+    - /bin/mkdir -p $SITE/tienda/wp-content/themes/hello-elementor-chilldren $SITE/tienda/wp-content/mu-plugins
+    - /bin/cp -R tienda/wp-content/themes/hello-elementor-chilldren/. $SITE/tienda/wp-content/themes/hello-elementor-chilldren/
+    - /bin/cp -f tienda/wp-content/mu-plugins/elementor-safe-mode.php $SITE/tienda/wp-content/mu-plugins/

@@ -1,0 +1,60 @@
+# Production cutover simulation. Does not touch docker-compose.yml, its volumes, or its DB data.
+# Reuses the running `db` service of the main compose project through its network.
+#
+#   python docker/deploy-test/make-configs.py
+#   docker compose -f docker-compose.deploy-test.yml build
+#   docker compose -f docker-compose.deploy-test.yml run --rm seed base      # slow once (~1 GB copy)
+#   docker compose -f docker-compose.deploy-test.yml run --rm seed stale
+#   docker compose -f docker-compose.deploy-test.yml run --rm seed clean
+#   docker compose -f docker-compose.deploy-test.yml up -d web-stale web-clean
+#   stale -> http://localhost:8090   clean -> http://localhost:8091
+#   (complaint-book mail runs in dry-run mode: LR_MAIL_DRY_RUN=1)
+name: somosescuelacapacita-deploytest
+
+x-web: &web
+  build: ./docker/deploy-test
+  environment:
+    LR_MAIL_DRY_RUN: "1"
+  extra_hosts: ["host.docker.internal:host-gateway"]
+
+services:
+  seed:
+    image: alpine:latest
+    profiles: [seed]
+    entrypoint: ["sh", "/dt/seed.sh"]
+    volumes:
+      - wpfiles_src:/src:ro
+      - ./dist:/dist:ro
+      - ./docker/deploy-test:/dt:ro
+      - dt_base:/base
+      - dt_stale:/stale
+      - dt_clean:/clean
+      - dt_backup:/backup
+  web-stale:
+    <<: *web
+    ports: ["8090:80"]
+    volumes:
+      - dt_stale:/var/www/html
+      - ./docker/deploy-test/wp-config.tienda.8090.php:/var/www/html/tienda/wp-config.php
+      - ./docker/local.ini:/usr/local/etc/php/conf.d/zz-local.ini:ro
+  web-clean:
+    <<: *web
+    ports: ["8091:80"]
+    volumes:
+      - dt_clean:/var/www/html
+      - ./docker/deploy-test/wp-config.tienda.8091.php:/var/www/html/tienda/wp-config.php
+      - ./docker/local.ini:/usr/local/etc/php/conf.d/zz-local.ini:ro
+
+networks:
+  default:
+    name: web-somosescuelacapacita_default
+    external: true
+
+volumes:
+  wpfiles_src:
+    external: true
+    name: web-somosescuelacapacita_wpfiles
+  dt_base:
+  dt_stale:
+  dt_clean:
+  dt_backup:

@@ -1,0 +1,7 @@
+# Optional: also run the OLD WordPress root site (from the wpfiles volume) at http://localhost:8080/
+# Requires docker/wp-config.root.php (local only, git-ignored; regenerate with docker/gen-configs.py).
+#   docker compose -f docker-compose.yml -f docker-compose.legacy-root.yml up -d wordpress
+services:
+  wordpress:
+    volumes:
+      - ./docker/wp-config.root.php:/var/www/html/wp-config.php

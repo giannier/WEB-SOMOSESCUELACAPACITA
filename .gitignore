@@ -1,0 +1,64 @@
+# Repo layout: static site (src/ -> dist/, dist/ committed on purpose) + local Docker +
+# the shop's own custom code only. Everything else in the working folder is ignored.
+
+# --- secrets / runtime data (never commit) ---
+config.secret.php
+**/api/config.secret.php
+**/api/storage/**
+!**/api/storage/
+!**/api/storage/.gitignore
+!**/api/storage/.htaccess
+!**/api/storage/*/
+!**/api/storage/*/.gitignore
+docker/wp-config.*.php
+!docker/gen-configs.py
+docker/deploy-test/wp-config.*.php
+.env
+.env.*
+
+# --- shop (/tienda): track custom code only, never WordPress core/plugins/uploads/config ---
+/tienda/*
+!/tienda/wp-content/
+/tienda/wp-content/*
+!/tienda/wp-content/themes/
+/tienda/wp-content/themes/*
+!/tienda/wp-content/themes/hello-elementor-chilldren/
+!/tienda/wp-content/mu-plugins/
+/tienda/wp-content/mu-plugins/*
+!/tienda/wp-content/mu-plugins/elementor-safe-mode.php
+
+# --- legacy WordPress root (replaced by dist/) ---
+/wp-admin/
+/wp-includes/
+/wp-content/
+/wp-*.php
+/index.php
+/index.php56
+/xmlrpc.php
+/license.txt
+/readme.html
+/php.ini
+/.htaccess*
+/.well-known/
+/cgi-bin/
+
+# --- tooling / OS / editors ---
+node_modules/
+.atl/
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+
+# --- dumps, archives, logs ---
+*.log
+error_log
+php_errorlog
+debug.log
+*.sql
+!docker/initdb/*.sql
+*.zip
+*.tgz
+*.tar.gz

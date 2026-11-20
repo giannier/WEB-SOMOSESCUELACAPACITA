@@ -1,0 +1,223 @@
+---
+title: Libro de Reclamaciones – Escuela Capacita
+description: Registra tu reclamo o queja en el Libro de Reclamaciones virtual de Escuela Capacita y recibe tu constancia en PDF, conforme a la Ley 29571.
+path: libro-de-reclamaciones/
+elementor_id: 894
+body_class: wp-singular template-elementor_canvas page-template-elementor_canvas page page-id-894 wp-embed-responsive wp-theme-hello-elementor hello-elementor-default elementor-default elementor-kit-162 elementor-page elementor-page-894
+---
+<main id="content" class="site-main">
+<div class="lr-page">
+
+  <h1>Libro de Reclamaciones</h1>
+  <p>Conforme al Código de Protección y Defensa del Consumidor, Ley N.° 29571.</p>
+
+  <div class="lr-notice">
+    <strong>Aviso:</strong> conforme a lo establecido en el Código de Protección y Defensa del Consumidor,
+    este establecimiento cuenta con un Libro de Reclamaciones a tu disposición. Solicítalo para registrar tu queja o reclamo.
+  </div>
+
+  <div class="lr-types">
+    <div>
+      <h2>Reclamo</h2>
+      <p>Disconformidad relacionada a los <strong>bienes o servicios</strong> que contrataste. Requiere una respuesta de nuestra parte.</p>
+    </div>
+    <div>
+      <h2>Queja</h2>
+      <p>Disconformidad <strong>no relacionada</strong> a los bienes o servicios, o malestar respecto a la atención recibida.</p>
+    </div>
+  </div>
+
+  <p>Responderemos en un plazo no mayor de <strong>15 días hábiles improrrogables</strong>, conforme al artículo 24 de la
+  Ley N.° 29571, modificado por la Ley N.° 31435. Registrar un reclamo aquí no limita tu derecho a acudir a otras vías
+  ni es requisito previo para denunciar ante el INDECOPI.</p>
+
+  <!-- Fields and required-ness follow Art. 5 of D.S. 011-2011-PCM. -->
+  <form class="lr-form" id="lr-form" novalidate autocomplete="on" data-support-mail="reclamaciones@somosescuelacapacita.com">
+
+    <input type="hidden" name="token" id="lr-token" value="">
+
+    <!-- Honeypot: hidden from sight, tab order and screen readers -->
+    <div class="lr-trap" aria-hidden="true">
+      <label for="website_alt">No completar este campo</label>
+      <input type="text" id="website_alt" name="website_alt" tabindex="-1" autocomplete="off">
+    </div>
+
+    <fieldset class="lr-fieldset">
+      <legend>1. ¿Qué deseas registrar?</legend>
+      <div class="lr-options" role="radiogroup" aria-label="Tipo de solicitud">
+        <label class="lr-option">
+          <input type="radio" name="claim_type" value="Reclamo" required>
+          <span><strong>Reclamo</strong><em>Sobre un producto o servicio contratado</em></span>
+        </label>
+        <label class="lr-option">
+          <input type="radio" name="claim_type" value="Queja">
+          <span><strong>Queja</strong><em>Sobre la atención recibida</em></span>
+        </label>
+      </div>
+      <span class="lr-group-error" data-error-for="claim_type"><span data-error-text></span></span>
+    </fieldset>
+
+    <fieldset class="lr-fieldset">
+      <legend>2. Tus datos</legend>
+
+      <div class="lr-field">
+        <label class="lr-label" for="lr-name">Nombre y apellidos *</label>
+        <input class="lr-control" type="text" id="lr-name" name="name" autocomplete="name" maxlength="120" required>
+        <span class="lr-error" data-error-text></span>
+      </div>
+
+      <div class="lr-row">
+        <div class="lr-field">
+          <label class="lr-label" for="lr-document-type">Tipo de documento *</label>
+          <select class="lr-control" id="lr-document-type" name="document_type" required>
+            <option value="DNI" selected>DNI</option>
+            <option value="CE">Carné de extranjería</option>
+            <option value="Pasaporte">Pasaporte</option>
+            <option value="RUC">RUC</option>
+          </select>
+          <span class="lr-error" data-error-text></span>
+        </div>
+        <div class="lr-field">
+          <label class="lr-label" for="lr-document-number">Número *</label>
+          <input class="lr-control" type="text" id="lr-document-number" name="document_number" inputmode="numeric" maxlength="20" required>
+          <span class="lr-error" data-error-text></span>
+        </div>
+      </div>
+
+      <div class="lr-field">
+        <label class="lr-label" for="lr-address">Domicilio *</label>
+        <input class="lr-control" type="text" id="lr-address" name="address" autocomplete="street-address" maxlength="200" required>
+        <span class="lr-error" data-error-text></span>
+      </div>
+
+      <div class="lr-row">
+        <div class="lr-field">
+          <label class="lr-label" for="lr-phone">Teléfono *</label>
+          <input class="lr-control" type="tel" id="lr-phone" name="phone" autocomplete="tel" inputmode="tel" maxlength="25" required>
+          <span class="lr-error" data-error-text></span>
+        </div>
+        <div class="lr-field">
+          <label class="lr-label" for="lr-email">Correo electrónico *</label>
+          <input class="lr-control" type="email" id="lr-email" name="email" autocomplete="email" inputmode="email" maxlength="120" required>
+          <span class="lr-hint">Aquí recibirás tu constancia en PDF</span>
+          <span class="lr-error" data-error-text></span>
+        </div>
+      </div>
+
+      <div class="lr-check">
+        <input type="checkbox" id="lr-minor" name="is_minor" value="1">
+        <label for="lr-minor">El consumidor es menor de edad</label>
+      </div>
+
+      <!-- Art. 5 requires the guardian's data when the consumer is a minor -->
+      <div class="lr-guardian" id="lr-guardian" hidden>
+        <p class="lr-hint">Datos del padre, madre o representante:</p>
+        <div class="lr-field">
+          <label class="lr-label" for="lr-guardian-name">Nombre y apellidos *</label>
+          <input class="lr-control" type="text" id="lr-guardian-name" name="guardian_name" maxlength="120">
+          <span class="lr-error" data-error-text></span>
+        </div>
+        <div class="lr-field">
+          <label class="lr-label" for="lr-guardian-address">Domicilio *</label>
+          <input class="lr-control" type="text" id="lr-guardian-address" name="guardian_address" maxlength="200">
+          <span class="lr-error" data-error-text></span>
+        </div>
+        <div class="lr-row">
+          <div class="lr-field">
+            <label class="lr-label" for="lr-guardian-phone">Teléfono *</label>
+            <input class="lr-control" type="tel" id="lr-guardian-phone" name="guardian_phone" maxlength="25">
+            <span class="lr-error" data-error-text></span>
+          </div>
+          <div class="lr-field">
+            <label class="lr-label" for="lr-guardian-email">Correo electrónico *</label>
+            <input class="lr-control" type="email" id="lr-guardian-email" name="guardian_email" maxlength="120">
+            <span class="lr-error" data-error-text></span>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="lr-fieldset">
+      <legend>3. Producto o servicio</legend>
+      <div class="lr-row">
+        <div class="lr-field">
+          <label class="lr-label" for="lr-item-type">Tipo *</label>
+          <select class="lr-control" id="lr-item-type" name="item_type" required>
+            <option value="Servicio" selected>Servicio</option>
+            <option value="Producto">Producto</option>
+          </select>
+          <span class="lr-error" data-error-text></span>
+        </div>
+        <div class="lr-field">
+          <label class="lr-label" for="lr-amount">Monto reclamado</label>
+          <input class="lr-control" type="text" id="lr-amount" name="amount" inputmode="decimal" maxlength="12" placeholder="S/ 0.00">
+          <span class="lr-hint">Opcional</span>
+          <span class="lr-error" data-error-text></span>
+        </div>
+      </div>
+      <div class="lr-field">
+        <label class="lr-label" for="lr-item-description">Descripción *</label>
+        <input class="lr-control" type="text" id="lr-item-description" name="item_description" maxlength="300" required
+               placeholder="Ej.: Curso de Seguridad y Salud en el Trabajo, pago del 12/05/2026">
+        <span class="lr-error" data-error-text></span>
+      </div>
+    </fieldset>
+
+    <fieldset class="lr-fieldset">
+      <legend>4. Detalle</legend>
+      <div class="lr-field">
+        <label class="lr-label" for="lr-detail">Cuéntanos qué ocurrió *</label>
+        <textarea class="lr-control" id="lr-detail" name="detail" maxlength="1800" required data-counter="lr-detail-count"></textarea>
+        <span class="lr-hint"><span id="lr-detail-count">0</span> / 1800 caracteres</span>
+        <span class="lr-error" data-error-text></span>
+      </div>
+      <div class="lr-field">
+        <label class="lr-label" for="lr-request">¿Qué solicitas? *</label>
+        <textarea class="lr-control lr-control--short" id="lr-request" name="request" maxlength="700" required data-counter="lr-request-count"></textarea>
+        <span class="lr-hint"><span id="lr-request-count">0</span> / 700 caracteres</span>
+        <span class="lr-error" data-error-text></span>
+      </div>
+    </fieldset>
+
+    <!-- Consent replaces the signature in the virtual book -->
+    <fieldset class="lr-fieldset">
+      <legend>5. Confirmación</legend>
+      <div class="lr-check">
+        <input type="checkbox" id="lr-truth" name="consent_truth" value="1" required>
+        <label for="lr-truth">Declaro que la información registrada es veraz y estoy conforme con el contenido de este reclamo. *</label>
+      </div>
+      <span class="lr-group-error" data-error-for="consent_truth"><span data-error-text></span></span>
+
+      <div class="lr-check">
+        <input type="checkbox" id="lr-privacy" name="consent_privacy" value="1" required>
+        <!-- TODO: point the link to the final privacy policy page -->
+        <label for="lr-privacy">Autorizo el tratamiento de mis datos personales conforme a la
+          <a href="/politica-de-privacidad/" target="_blank" rel="noopener">Política de Privacidad</a>. *</label>
+      </div>
+      <span class="lr-group-error" data-error-for="consent_privacy"><span data-error-text></span></span>
+    </fieldset>
+
+    <div class="lr-status" aria-live="polite"><span data-status-text></span></div>
+
+    <div id="lr-captcha" aria-label="Verificación anti-robots"></div>
+
+    <button class="lr-submit" type="submit" id="lr-submit">Registrar en el Libro de Reclamaciones</button>
+    <p class="lr-note">Recibirás la Hoja de Reclamación en PDF en el correo que indiques. Guárdala: es tu constancia.</p>
+  </form>
+
+  <div class="lr-done" id="lr-done" hidden>
+    <h2>Tu reclamo quedó registrado</h2>
+    <p class="lr-done__number">N.° <strong id="lr-claim-number"></strong></p>
+    <p id="lr-done-text"></p>
+    <p class="lr-note">Anota este número: identifica tu reclamo en cualquier consulta posterior.</p>
+    <a href="/">Volver al inicio</a>
+  </div>
+
+</div>
+</main>
+
+<!-- @slot head -->
+<link rel="stylesheet" href="{{root}}assets/css/libro-reclamaciones.css">
+
+<!-- @slot scripts -->
+<script src="{{root}}assets/js/reclamaciones.js" defer></script>

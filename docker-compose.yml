@@ -1,0 +1,46 @@
+# Local-only environment. Production files are never modified.
+# Only the shop (/tienda) is WordPress now; the root site is static (dist/). To run the OLD root WordPress
+# from the volume see docker-compose.legacy-root.yml.
+services:
+  db:
+    image: mariadb:lts   # prod is 10.6; 10.6 pull stalled, lts is local and compatible
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_USER: wp
+      MARIADB_PASSWORD: wp
+    command: ["--max-allowed-packet=256M", "--innodb-buffer-pool-size=512M"]
+    ports: ["3307:3306"]
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+  wordpress:
+    image: wordpress:php8.1-apache   # prod runs PHP 8.1
+    depends_on: [db]
+    ports: ["8080:80"]
+    volumes:
+      - wpfiles:/var/www/html
+      - ./tienda/wp-content/mu-plugins:/var/www/html/tienda/wp-content/mu-plugins
+      - ./tienda/wp-content/themes/hello-elementor-chilldren:/var/www/html/tienda/wp-content/themes/hello-elementor-chilldren
+      - ./docker/wp-config.tienda.php:/var/www/html/tienda/wp-config.php
+      - ./docker/local.ini:/usr/local/etc/php/conf.d/zz-local.ini:ro
+  wpcli:
+    image: wordpress:cli-php8.1
+    profiles: [tools]
+    user: "33:33"
+    depends_on: [db]
+    volumes:
+      - wpfiles:/var/www/html
+      - ./tienda/wp-content/mu-plugins:/var/www/html/tienda/wp-content/mu-plugins
+      - ./tienda/wp-content/themes/hello-elementor-chilldren:/var/www/html/tienda/wp-content/themes/hello-elementor-chilldren
+      - ./docker/wp-config.tienda.php:/var/www/html/tienda/wp-config.php
+      - ./docker/local.ini:/usr/local/etc/php/conf.d/zz-local.ini:ro
+    entrypoint: ["wp", "--allow-root"]
+  phpmyadmin:
+    image: phpmyadmin:5
+    profiles: [tools]
+    environment: { PMA_HOST: db, PMA_USER: root, PMA_PASSWORD: root, UPLOAD_LIMIT: 512M }
+    ports: ["8081:80"]
+    depends_on: [db]
+volumes:
+  dbdata:
+  wpfiles:
