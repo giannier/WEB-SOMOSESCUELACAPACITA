@@ -71,9 +71,9 @@ ErrorDocument 404 /404.html
   ExpiresByType text/html "access plus 0 seconds"
   ExpiresByType application/xml "access plus 1 day"
   ExpiresByType text/plain "access plus 1 day"
-  ExpiresByType text/css "access plus 1 month"
-  ExpiresByType text/javascript "access plus 1 month"
-  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType text/css "access plus 1 week"
+  ExpiresByType text/javascript "access plus 1 week"
+  ExpiresByType application/javascript "access plus 1 week"
   ExpiresByType image/png "access plus 1 year"
   ExpiresByType image/jpeg "access plus 1 year"
   ExpiresByType image/webp "access plus 1 year"
@@ -84,7 +84,12 @@ ErrorDocument 404 /404.html
   ExpiresByType font/ttf "access plus 1 year"
 </IfModule>
 <IfModule mod_headers.c>
-  <FilesMatch "\.(css|js|png|jpe?g|webp|svg|ico|woff2?|ttf)$">
+  # css/js referenced from the HTML carry ?v=<content hash> (build.mjs), so a redeploy is picked up at once.
+  # The one-week cap only bounds files that cannot be versioned (chunks Elementor loads at runtime, url() inside CSS).
+  <FilesMatch "\.(css|js)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+  <FilesMatch "\.(png|jpe?g|webp|svg|ico|woff2?|ttf)$">
     Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
   <FilesMatch "\.html$">

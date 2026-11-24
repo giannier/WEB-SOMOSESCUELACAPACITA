@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -131,9 +132,30 @@ function markParent(html, parent) {
     href === parent ? `<li class="${liClass} current-menu-ancestor current-menu-parent current_page_parent current_page_ancestor"><a href="{{root}}${href}"` : all);
 }
 
+/**
+ * Cache busting: appends ?v=<content hash> to every local assets/**.css|js reference in the rendered HTML, so a
+ * redeploy is picked up immediately even though the server caches css/js (see src/public/.htaccess). Anything not
+ * referenced from HTML (CSS url(), chunks loaded by Elementor at runtime) stays unversioned.
+ */
+const hashCache = new Map();
+function assetHash(rel) {
+  if (!hashCache.has(rel)) {
+    const file = path.join(SRC, rel);
+    hashCache.set(rel, exists(file) ? crypto.createHash('md5').update(fs.readFileSync(file)).digest('hex').slice(0, 8) : '');
+  }
+  return hashCache.get(rel);
+}
+function versionAssets(html) {
+  return html.replace(/(href|src)="((?:\.\/|(?:\.\.\/)+)(assets\/[^"?#]+\.(?:css|js)))"/g, (all, attr, url, rel) => {
+    const h = assetHash(rel);
+    return h ? `${attr}="${url}?v=${h}"` : all;
+  });
+}
+
 // ---------------------------------------------------------------- build
 function build() {
   const t0 = Date.now();
+  hashCache.clear();
   const site = exists(path.join(SRC, 'site.json')) ? JSON.parse(read(path.join(SRC, 'site.json'))) : {};
   const siteVars = flatten(site, 'site.');
 
@@ -195,6 +217,7 @@ function build() {
     // Render twice: the first pass inlines header/footer/slots into the layout, the second resolves their placeholders.
     let html = render(layouts[layoutName], vars, layouts);
     html = render(html, vars, layouts);
+    html = versionAssets(html);
 
     const outFile = path.join(DIST, pagePath, 'index.html');
     fs.mkdirSync(path.dirname(outFile), {recursive: true});

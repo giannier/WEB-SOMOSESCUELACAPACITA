@@ -1,1 +1,23 @@
 /* Your own overrides. Loaded last, after every other stylesheet. */
+
+/* Home hero: ISO 21001 seal, right side, vertically centered. */
+.elementor-317 .elementor-element-72a9b451 { position: relative; }
+.hero-iso-seal {
+	position: absolute;
+	top: 50%;
+	right: max(64px, calc((100% - 1200px) / 2));
+	transform: translateY(-50%);
+	width: clamp(340px, 34vw, 480px);
+	height: auto;
+	aspect-ratio: 720 / 356;
+	z-index: 5;
+	pointer-events: none;
+}
+@media (max-width: 1024px) {
+	.hero-iso-seal { display: none; }
+}
+
+/* Home hero: shift the slide text a bit to the left (desktop only). */
+@media (min-width: 1025px) {
+	.elementor-317 .elementor-element-1d7dbcd2 .flex_caption.container { transform: translateX(-80px); }
+}
