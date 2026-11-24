@@ -35,3 +35,24 @@ Reproduces the production cutover (old WP root + /tienda docroot, then `cp -R di
 `docker-compose.deploy-test.yml`. `stale` = http://localhost:8090 (stale root WP files left in place), `clean` = http://localhost:8091
 (root WP files moved away first). Uses its own volumes (`somosescuelacapacita-deploytest_dt_*`) and the `db` service of the main project.
 Delete with `docker compose -f docker-compose.deploy-test.yml down -v`.
+
+## Libro de Reclamaciones test (docker-compose.libro-test.yml)
+Runs the real PHP api (`dist/`, so run `npm run build` first) under Apache + mod_php 8.1, separate from the shop stacks.
+Project `capacita-libro`; each service has its own storage volume and `dist/` is mounted read-only (`dist/api/storage` never receives data).
+
+    docker compose -f docker-compose.libro-test.yml -p capacita-libro up -d --build
+    node tools/libro-e2e.mjs --fresh        # npm run test:libro -- --fresh ; --only=ok,strict,mailfail,nosmtp
+    docker compose -f docker-compose.libro-test.yml -p capacita-libro down -v     # stop and drop the volumes
+
+| Service | Port | Mail | Limits | Scenarios |
+|---|---|---|---|---|
+| `libro-ok` | 8093 | `LR_MAIL_DRY_RUN=1` (.eml in `storage/correo/`) | relaxed (no interval, fill 2 s) | success, validation, honeypot, origin, token reuse, counter recovery (deleted / corrupt / stale), archive failure, kill switch, private URLs |
+| `libro-strict` | 8094 | dry-run | production (1 per IP / 30 min, fill 6 s) | too fast -> 403, rate limit -> 429 |
+| `libro-mailfail` | 8095 | real sending to a closed SMTP port | relaxed | both e-mails `failed`, claim kept, `pendientes/` marker + `PENDING` log |
+| `libro-nosmtp` | 8096 | production config without `config.secret.php` | relaxed | both e-mails `skipped`, marker + log |
+
+- The test copy of `api/config.php` is patched inside the container by `docker/libro-test/entrypoint.sh` (env `LR_TEST_RELAX`, `LR_TEST_SMTP`); the repo files are untouched.
+- To inspect by hand: `docker exec capacita-libro-libro-mailfail-1 ls /var/www/html/api/storage/pendientes` (same layout as production: `hojas/`, `correo/`, `log/claims.log`, `counter.dat`).
+- Run with `--fresh` (the strict suite expects an empty volume). The script writes `docker/libro-test/results.md`.
+- NOT covered: real SMTP delivery (host, certificate, inbox), hCaptcha, LiteSpeed, cPanel permissions.
+- Failure injection beyond this (ARBICOP's `LR_TEST_FAIL`) is not ported: archive failure is produced by making the year folder read-only.

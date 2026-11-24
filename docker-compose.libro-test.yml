@@ -1,0 +1,54 @@
+# Libro de Reclamaciones test environment: the real PHP api (dist/) under Apache + mod_php 8.1.
+#   npm run build
+#   docker compose -f docker-compose.libro-test.yml -p capacita-libro up -d --build
+#   node tools/libro-e2e.mjs [--fresh]        # scenarios: docker/README.md ("Libro de Reclamaciones")
+# dist/ is mounted read-only and copied inside the container; each service has its OWN storage volume,
+# so dist/api/storage never receives runtime data. Mail is never really sent:
+#   - libro-ok / libro-strict: LR_MAIL_DRY_RUN=1 writes the .eml files to storage/correo/
+#   - libro-mailfail: real sending against a closed SMTP port (every send fails): pending marker flow
+#   - libro-nosmtp: production config without config.secret.php (state "skipped"): pending marker flow
+# Ports: 8093 ok, 8094 strict, 8095 mailfail, 8096 nosmtp (8080/8081/8090/8091 belong to the other stacks).
+name: capacita-libro
+x-libro: &libro
+  build: { context: ./docker/libro-test, args: { PHP_VERSION: "8.1" } }
+  extra_hosts: ["host.docker.internal:host-gateway"]
+services:
+  libro-ok:               # relaxed limits + dry-run: success flow, validation, counter recovery, archive failure, kill switch
+    <<: *libro
+    environment:
+      LR_MAIL_DRY_RUN: "1"
+      LR_TEST_RELAX: "1"
+    ports: ["8093:80"]
+    volumes:
+      - ./dist:/dist:ro
+      - storage_ok:/var/www/html/api/storage
+  libro-strict:           # production limits (1 claim / IP / 30 min, min fill 6 s): proves the rate limiter
+    <<: *libro
+    environment:
+      LR_MAIL_DRY_RUN: "1"
+    ports: ["8094:80"]
+    volumes:
+      - ./dist:/dist:ro
+      - storage_strict:/var/www/html/api/storage
+  libro-mailfail:         # SMTP unreachable, NOT dry-run: both e-mails fail, claim stays archived, pending marker written
+    <<: *libro
+    environment:
+      LR_TEST_RELAX: "1"
+      LR_TEST_SMTP: unreachable
+    ports: ["8095:80"]
+    volumes:
+      - ./dist:/dist:ro
+      - storage_mailfail:/var/www/html/api/storage
+  libro-nosmtp:           # no config.secret.php (password missing): state "skipped", pending marker written
+    <<: *libro
+    environment:
+      LR_TEST_RELAX: "1"
+    ports: ["8096:80"]
+    volumes:
+      - ./dist:/dist:ro
+      - storage_nosmtp:/var/www/html/api/storage
+volumes:
+  storage_ok:
+  storage_strict:
+  storage_mailfail:
+  storage_nosmtp:

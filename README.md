@@ -9,6 +9,8 @@ npm run dev     # compila, vigila cambios y sirve en http://localhost:3000 (reca
 npm run build   # genera dist/
 npm run watch   # compila al guardar, sin servidor
 npm run check   # verifica que dist/ no tenga assets faltantes
+npm run check:deploy  # valida .cpanel.yml (solo cp, rutas absolutas, sin borrados; requiere python + PyYAML)
+npm run test:libro    # prueba end-to-end del Libro de Reclamaciones en Docker (ver docker/README.md)
 ```
 
 Solo requiere Node >= 18 (sin dependencias).
@@ -54,11 +56,13 @@ Sale como `dist/mi-pagina/index.html` (URL limpia `/mi-pagina/`). Slots opcional
 
 ## Formularios y WhatsApp
 
-Contacto y Postula tenían formularios de Elementor (PHP). Ahora llevan `data-whatsapp="{{site.whatsapp}}"` y `assets/js/forms.js` valida y abre `wa.me` con el mensaje armado (número en `src/site.json`). En Postula el CV no puede adjuntarse: se pide enviarlo en la conversación. El botón flotante de WhatsApp (Joinchat) conserva su número y mensaje en `src/layouts/joinchat.html`.
+Contacto y Postula tenían formularios de Elementor (PHP). Ahora llevan `data-whatsapp="{{site.whatsapp}}"` y `assets/js/forms.js` valida y abre `wa.me` con el mensaje armado (número en `src/site.json`). En Postula el CV no puede adjuntarse: se pide enviarlo en la conversación. El botón flotante de WhatsApp (Joinchat, `src/layouts/joinchat.html`) toma el número de `src/site.json` (`whatsapp`); el mensaje y los textos se editan en ese partial.
 
 El Libro de Reclamaciones usa su propio backend PHP en `src/public/api/` (ver `src/public/api/README.md`).
 
 ## Despliegue
+
+Los `.css`/`.js` enlazados desde el HTML salen con `?v=<hash del contenido>` (lo agrega `build.mjs`), así un redeploy se ve de inmediato aunque el servidor los cachee.
 
 `dist/` **se versiona** (cPanel solo copia archivos, no ejecuta npm). Cada cambio: edita `src/` → `npm run build` → commit (incluye `dist/`).
 

@@ -69,6 +69,7 @@ Importante: `wp-content` raíz (con sus uploads) queda en el respaldo; las imág
 1. cPanel > **Git Version Control** > *Manage* en `somosescuelacapacita` > pestaña **Pull or Deploy**.
 2. **Update from Remote** (trae el último commit) y luego **Deploy HEAD Commit**.
    - Ejecuta `.cpanel.yml`: copia `dist/` al docroot y el código propio de la tienda (tema hijo `hello-elementor-chilldren` + mu-plugin `elementor-safe-mode.php`) a `/tienda/wp-content/`. Solo `cp`: no borra nada.
+   - `.cpanel.yml` usa rutas absolutas y **no** crea carpetas: antes del primer despliegue confirma en File Manager que existe `/home/corpor46/somosescuelacapacita.com/tienda/wp-content/mu-plugins/`. Si faltara, el último `cp` falla y cPanel marca el despliegue como fallido (el sitio estático ya habría quedado copiado); créala a mano y repite.
    - Si el botón sale deshabilitado: el repo del servidor debe estar limpio (sin cambios locales) y `.cpanel.yml` debe estar commiteado.
 3. Ahora haz el **paso 1.3** (crear `api/config.secret.php`) si aún no existe.
 
@@ -91,6 +92,7 @@ Abre en ventana privada:
 Notas:
 - La **sincronización del catálogo/tienda** (productos, precios, enlaces desde el sitio estático) es una fase posterior; hoy el sitio solo enlaza a `/tienda/`.
 - **URLs antiguas**: las páginas principales conservan la misma ruta (`/nosotros/`, `/contacto/`, `/cursos/`, `/diplomados/`, `/seminarios/`, `/formaciones/`, `/convenios/`, `/postula/`, `/libro-de-reclamaciones/`). Ya hay 301 de `/inicio/` a `/`. Rutas del WordPress viejo **sin equivalente** (darán 404): `/in-house/`, `/preview/`, `/sample-page/`, `/shop/`, `/cart/`, `/checkout/`, `/my-account/` (eran páginas de WooCommerce del raíz; la tienda real vive en `/tienda/`) y la entrada `/AAAA/MM/DD/hello-world/`. Si algo estaba indexado en Google, agrega `RewriteRule` 301 en `src/public/.htaccess` (por ejemplo `^in-house/?$ /formaciones/ [R=301,L]`) y vuelve a desplegar.
+- `dist/.htaccess` se copia en **cada** despliegue y reemplaza el `.htaccess` del docroot. Si cPanel (MultiPHP Manager) había escrito ahí un bloque con la versión de PHP, se pierde: tras cada despliegue vuelve a abrir MultiPHP Manager, confirma la versión anotada (si cambió, vuelve a guardarla) y comprueba que `/tienda/` y `/api/token.php` responden.
 - Estos servidores pueden usar LiteSpeed (el `.htaccess` viejo traía bloques LSCACHE): `.htaccess` es compatible, pero la prueba local se hizo con Apache; verifica los puntos del smoke test.
 
 ## 6. ROLLBACK (volver al WordPress anterior)
@@ -123,7 +125,56 @@ Verifica `/` (WordPress) y `/tienda/`, y que `api/storage/` y `api/config.secret
 
 Para volver a poner el sitio estático después: repite 3 y 4. Como `storage/` y `config.secret.php` no se movieron, el correlativo y los reclamos archivados continúan; no hace falta recrearlos. Si por error se movieron, restáuralos desde `_backup_api_state/` **antes** de recibir nuevos reclamos.
 
+## Interruptor de emergencia del Libro de Reclamaciones (kill switch)
+
+Sirve para dejar de aceptar reclamos de inmediato (abuso masivo, fallo del archivado, SMTP comprometido) **sin borrar ni mover nada** y sin tocar el resto del sitio.
+
+**Apagar** (cPanel > File Manager, o Terminal):
+
+```bash
+touch /home/corpor46/somosescuelacapacita.com/api/storage/.disabled
+```
+
+- `api/token.php` y `api/reclamo.php` responden 503. En la página, el formulario muestra "No pudimos preparar el formulario... escríbenos a reclamaciones@somosescuelacapacita.com". La página y el resto del sitio siguen en línea.
+- `api/storage/` es solo del servidor: ningún despliegue crea ni borra `.disabled`, así que el interruptor sobrevive a nuevos despliegues.
+- **Reactivar**: borra solo ese archivo (`rm .../api/storage/.disabled`) y envía un reclamo de prueba.
+- Mientras esté apagado, atiende los reclamos que lleguen a `reclamaciones@` y regístralos cuando reactives (la obligación legal de responder en 15 días hábiles sigue corriendo). Si el apagado va a durar, deja un aviso visible en la página y avisa al consumidor por correo.
+- Alternativa solo temporal (un despliegue la deshace): renombrar `api/reclamo.php` a `api/reclamo.php.off`.
+
+## Revisión de pendientes (Libro de Reclamaciones)
+
+Cada reclamo se archiva **antes** de enviar correos. Si falla el aviso a la empresa (`reclamaciones@`) —SMTP caído, contraseña cambiada, buzón lleno o `config.secret.php` ausente— el reclamo sigue registrado y queda un marcador `api/storage/pendientes/<número>.json` más una línea `PENDING` en `api/storage/log/claims.log`. Nadie recibe un aviso automático: hay que revisarlo.
+
+**Cuándo:** una vez por semana, y siempre después de cambiar el SMTP (contraseña, host, puerto) o de un despliegue que toque `api/`. La respuesta al consumidor vence en 15 días hábiles (Ley 29571): un pendiente olvidado es un incumplimiento.
+
+```bash
+cd /home/corpor46/somosescuelacapacita.com/api/storage
+ls pendientes/ 2>/dev/null | wc -l          # cuántos marcadores hay (0 = todo entregado)
+ls pendientes/                              # números de reclamo pendientes
+cat pendientes/LR-2026-000001.json          # estado de cada correo (sent | failed | skipped) y ruta de la hoja
+grep -E "PENDING|ERROR" log/claims.log | tail -20
+```
+
+1. Abre el marcador: indica qué correo falló (`company` / `consumer`) y la clase del error. Corrige la causa (contraseña/host SMTP en `config.secret.php` / `config.php`) y haz un reclamo de prueba.
+2. La hoja está en `api/storage/hojas/AAAA/<número>.pdf` (descárgala por File Manager) y los datos en `<número>.json` (incluye el correo del consumidor).
+3. Envía tú la constancia: a la empresa (si no llegó) y al consumidor, desde `reclamaciones@somosescuelacapacita.com`, adjuntando el PDF.
+4. Cuando esté atendido, **borra solo el marcador** de `pendientes/`. Nunca borres ni muevas las hojas, `counter.dat` ni `config.secret.php`.
+5. Si el archivo `<número>.json` de la hoja no existe pero hubo un error `NOT archived` en el log, el reclamo **no** quedó registrado y el consumidor vio un error: escríbele para que lo reenvíe.
+
+El reenvío automático no existe aún (a diferencia de ARBICOP): es un procedimiento manual. Los escenarios que generan estos marcadores se prueban en local (ver `docker/README.md`).
+
+## Revertir un despliegue (rollback del sitio estático)
+
+`git revert` + *Deploy HEAD Commit* **no** borra lo que ya se copió (`cp` nunca borra): sobrescribe los archivos que cambian, pero un archivo que el commit revertido había **añadido** queda en el servidor. Pasos:
+
+1. En tu PC: `git revert <commit>` (no uses `reset --force` sobre `main`), `npm run build` y `npm run check` si la reversión toca `src/`, commit incluyendo `dist/`, `git push`.
+2. cPanel > Git Version Control > *Update from Remote* > *Deploy HEAD Commit*.
+3. Revisa el smoke test (paso 5). Para quitar un archivo sobrante, muévelo (no lo borres) a `/home/corpor46/_backup_static/`.
+4. Para el libro de reclamaciones usa primero el kill switch (arriba) si el problema está en `api/`.
+5. La tienda: el despliegue solo copia el tema hijo y `elementor-safe-mode.php`. Si el tema hijo rompe la tienda, activa el tema padre `hello-elementor` desde `/tienda/wp-admin/` > Apariencia > Temas (si no puedes entrar, renombra la carpeta `hello-elementor-chilldren` y WordPress cae a un tema por defecto) o mueve `mu-plugins/elementor-safe-mode.php` a `_backup_static/`; no repitas el despliegue hasta corregirlo. El rollback completo al WordPress anterior es el paso 6.
+
 ## Mantenimiento habitual
 
-1. Edita `src/`, ejecuta `npm run build` y `npm run check`.
+1. Edita `src/`, ejecuta `npm run build` y `npm run check`. Si tocaste `.cpanel.yml`, `tienda/` o `src/public/api/`: `npm run check:deploy` (valida `.cpanel.yml`: solo `cp`, rutas absolutas, nada se borra) y, para `api/`, `npm run test:libro` con Docker (ver `docker/README.md`).
 2. Commit **incluyendo `dist/`**, push, y en cPanel: *Update from Remote* > *Deploy HEAD Commit*.
+3. Tras desplegar: repite el control de MultiPHP Manager (ver nota del paso 5) y revisa los pendientes del libro de reclamaciones una vez por semana (sección "Revisión de pendientes").

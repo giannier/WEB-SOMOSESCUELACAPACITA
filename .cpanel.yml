@@ -1,13 +1,18 @@
-# cPanel > Git Version Control > "Deploy HEAD Commit".
-# The repo is cloned OUTSIDE the docroot (/home/corpor46/repos/somosescuelacapacita).
-# Only `cp` is used: nothing is ever deleted, so server-only files survive every deploy
-# (api/config.secret.php, api/storage/ runtime data, tienda/ core, plugins, uploads, wp-config.php).
+# cPanel > Git Version Control > Manage > Pull or Deploy > "Deploy HEAD Commit".
+# Repo is cloned OUTSIDE the docroot: /home/corpor46/repos/somosescuelacapacita ; docroot: /home/corpor46/somosescuelacapacita.com
+#
+# Rules this file follows (validated by tools/check-cpanel-yml.py, see DEPLOY.md):
+#  - Only `cp`. Nothing is ever deleted, moved or synced, so server-only files survive every deploy:
+#    api/config.secret.php, api/storage/** runtime data, tienda/ (core, plugins, uploads, wp-config.php), .well-known/.
+#  - Absolute paths inline in every command. No exported variables: persistence of `export` across tasks is not guaranteed.
+#  - No mkdir: /tienda/wp-content/mu-plugins/ must already exist on the live shop (DEPLOY.md, step 0). If it did not,
+#    the last `cp` would fail and cPanel would flag the deploy as failed (the static site above is already copied).
+#  - `cp -R dist/. docroot/` overwrites same-named files only. dist/ ships no config.secret.php and only the
+#    placeholder files of api/storage (.gitignore/.htaccess), whose content is identical to what is already there.
 deployment:
   tasks:
-    - export SITE=/home/corpor46/somosescuelacapacita.com
     # 1) Static site: dist/ (committed build output) on top of the docroot
-    - /bin/cp -R dist/. $SITE/
-    # 2) Shop custom code only (child theme + mu-plugin); the rest of /tienda is untouched
-    - /bin/mkdir -p $SITE/tienda/wp-content/themes/hello-elementor-chilldren $SITE/tienda/wp-content/mu-plugins
-    - /bin/cp -R tienda/wp-content/themes/hello-elementor-chilldren/. $SITE/tienda/wp-content/themes/hello-elementor-chilldren/
-    - /bin/cp -f tienda/wp-content/mu-plugins/elementor-safe-mode.php $SITE/tienda/wp-content/mu-plugins/
+    - /bin/cp -R /home/corpor46/repos/somosescuelacapacita/dist/. /home/corpor46/somosescuelacapacita.com/
+    # 2) Shop custom code only (child theme + mu-plugin); the rest of /tienda is never touched
+    - /bin/cp -R /home/corpor46/repos/somosescuelacapacita/tienda/wp-content/themes/hello-elementor-chilldren/. /home/corpor46/somosescuelacapacita.com/tienda/wp-content/themes/hello-elementor-chilldren/
+    - /bin/cp -f /home/corpor46/repos/somosescuelacapacita/tienda/wp-content/mu-plugins/elementor-safe-mode.php /home/corpor46/somosescuelacapacita.com/tienda/wp-content/mu-plugins/

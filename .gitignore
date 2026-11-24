@@ -1,5 +1,26 @@
-# Repo layout: static site (src/ -> dist/, dist/ committed on purpose) + local Docker +
-# the shop's own custom code only. Everything else in the working folder is ignored.
+# Repo layout: static site (src/ -> dist/, dist/ committed on purpose: cPanel does not run npm) + local Docker +
+# tooling + the shop's own custom code only. Allow-list: anything not listed below stays untracked.
+
+# --- root: ignore everything, then allow-list what belongs to the repo ---
+/*
+!/.gitignore
+!/.editorconfig
+!/.gitattributes
+!/.cpanel.yml
+!/README.md
+!/DEPLOY.md
+!/package.json
+!/package-lock.json
+!/build.mjs
+!/src/
+!/dist/
+!/tools/
+!/docker/
+!/docker-compose.yml
+!/docker-compose.legacy-root.yml
+!/docker-compose.deploy-test.yml
+!/docker-compose.libro-test.yml
+!/tienda/
 
 # --- secrets / runtime data (never commit) ---
 config.secret.php
