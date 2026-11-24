@@ -21,6 +21,14 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: same-origin');
 
+// Kill switch (see reclamo.php): storage/.disabled stops issuing tokens too.
+if (is_file($config['storage'] . '/.disabled')) {
+    http_response_code(503);
+    header('Retry-After: 3600');
+    echo json_encode(['ok' => false, 'message' => 'unavailable']);
+    exit;
+}
+
 $security = new Security($config);
 
 echo json_encode([

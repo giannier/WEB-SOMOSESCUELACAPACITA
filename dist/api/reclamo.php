@@ -49,6 +49,17 @@ function note(array $config, string $level, string $message): void
     @file_put_contents($dir . '/claims.log', sprintf("[%s] %-7s %s\n", date('c'), $level, $message), FILE_APPEND | LOCK_EX);
 }
 
+// 0. Kill switch: an operator creates storage/.disabled (File Manager) to stop accepting claims at once.
+// storage/ is server-only, so a deploy never removes it. Delete the file to resume (see DEPLOY.md).
+if (is_file($config['storage'] . '/.disabled')) {
+    header('Retry-After: 3600');
+    respond(503, [
+        'ok' => false,
+        'message' => 'El libro de reclamaciones no está disponible por mantenimiento. Escríbenos a '
+            . $config['smtp']['internal_bcc'] . '.',
+    ]);
+}
+
 $security = new Security($config);
 $ip = $security->ip();
 
@@ -140,6 +151,7 @@ try {
     $claimNumber = (new ClaimNumber($config['storage']))->next();
 } catch (Throwable $e) {
     note($config, 'ERROR', 'claim number: ' . $e->getMessage());
+    $security->release();
     respond(500, ['ok' => false, 'message' => 'No pudimos registrar el reclamo. Inténtalo en unos minutos.']);
 }
 
@@ -165,6 +177,7 @@ try {
     }
 } catch (Throwable $e) {
     note($config, 'ERROR', 'pdf: ' . $e->getMessage());
+    $security->release();
     respond(500, ['ok' => false, 'message' => 'No pudimos generar la constancia. Inténtalo en unos minutos.']);
 }
 
@@ -199,15 +212,17 @@ function replaceFile(string $path, string $content): bool
     return true;
 }
 
-function unarchivable(array $config, string $claimNumber, string $why): never
+function unarchivable(array $config, Security $security, string $claimNumber, string $why): never
 {
+    // The claim never existed: give the visitor's slot back so retrying the same text is not rejected as a duplicate.
+    $security->release();
     note($config, 'ERROR', $claimNumber . ' NOT archived (' . $why . '); no e-mail sent, claim not confirmed');
     respond(500, ['ok' => false, 'message' => 'No pudimos registrar el reclamo. Inténtalo en unos minutos.']);
 }
 
 $dir = $config['storage'] . '/hojas/' . date('Y');
 if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
-    unarchivable($config, $claimNumber, 'cannot create archive directory');
+    unarchivable($config, $security, $claimNumber, 'cannot create archive directory');
 }
 $pdfPath = $dir . '/' . $claimNumber . '.pdf';
 $jsonPath = $dir . '/' . $claimNumber . '.json';
@@ -215,14 +230,14 @@ $record = $sheet + ['ip_hash' => $security->ipFingerprint($ip)];
 $encode = fn(array $r) => json_encode($r, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 $json = $encode($record);
 if ($json === false) {
-    unarchivable($config, $claimNumber, 'cannot encode sheet');
+    unarchivable($config, $security, $claimNumber, 'cannot encode sheet');
 }
 if (!writeNew($pdfPath, $pdf)) {
-    unarchivable($config, $claimNumber, 'cannot write PDF (unwritable or already exists)');
+    unarchivable($config, $security, $claimNumber, 'cannot write PDF (unwritable or already exists)');
 }
 if (!writeNew($jsonPath, $json)) {
     @unlink($pdfPath);
-    unarchivable($config, $claimNumber, 'cannot write JSON (unwritable or already exists)');
+    unarchivable($config, $security, $claimNumber, 'cannot write JSON (unwritable or already exists)');
 }
 $security->consumeToken();
 

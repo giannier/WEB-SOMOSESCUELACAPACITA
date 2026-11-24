@@ -10,6 +10,8 @@ final class Security
 {
     private array $limits;
     private string $rateDir;
+    /** Reservation made by the last successful reserve(), so release() can undo exactly that one. */
+    private ?array $held = null;
 
     /** Ranges published by Cloudflare (https://www.cloudflare.com/ips/). */
     private const CLOUDFLARE = [
@@ -166,6 +168,7 @@ final class Security
                 $global[] = $now;
                 $dups[$fingerprint] = $now;
                 $reason = null;
+                $this->held = ['key' => $k, 'at' => $now, 'fingerprint' => $fingerprint];
             }
 
             if ($reason === null) {
@@ -175,6 +178,60 @@ final class Security
                 fflush($fp);
             }
             return $reason === null;
+        } finally {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+        }
+    }
+
+    /**
+     * Undoes the reservation of the last successful reserve() (per-IP slot, global slot, content fingerprint) when
+     * the claim could not be registered afterwards, so the user's retry is not rejected for a claim that never
+     * existed. Never called once the claim is archived. Best effort: a failure here only keeps the old behaviour.
+     */
+    public function release(): void
+    {
+        $held = $this->held;
+        if ($held === null) {
+            return;
+        }
+        $this->held = null;
+        $fp = @fopen($this->rateDir . '/state.json', 'c+');
+        if ($fp === false || !flock($fp, LOCK_EX)) {
+            if ($fp !== false) {
+                fclose($fp);
+            }
+            return;
+        }
+        try {
+            $state = json_decode((string) stream_get_contents($fp), true);
+            if (!is_array($state)) {
+                return;
+            }
+            $dropOne = static function (array $stamps, int $at): array {
+                $i = array_search($at, $stamps, true);
+                if ($i !== false) {
+                    unset($stamps[$i]);
+                }
+                return array_values($stamps);
+            };
+            $ips = (array) ($state['ips'] ?? []);
+            $global = (array) ($state['global'] ?? []);
+            $dups = (array) ($state['dups'] ?? []);
+            if (isset($ips[$held['key']])) {
+                $ips[$held['key']] = $dropOne((array) $ips[$held['key']], $held['at']);
+                if ($ips[$held['key']] === []) {
+                    unset($ips[$held['key']]);
+                }
+            }
+            $global = $dropOne($global, $held['at']);
+            if (($dups[$held['fingerprint']] ?? null) === $held['at']) {
+                unset($dups[$held['fingerprint']]);
+            }
+            ftruncate($fp, 0);
+            rewind($fp);
+            fwrite($fp, json_encode(['ips' => $ips, 'global' => $global, 'dups' => $dups]));
+            fflush($fp);
         } finally {
             flock($fp, LOCK_UN);
             fclose($fp);

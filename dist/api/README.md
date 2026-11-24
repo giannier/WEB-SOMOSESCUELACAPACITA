@@ -26,9 +26,20 @@ Each archived `storage/hojas/YYYY/LR-YYYY-NNNNNN.json` has a `notifications` blo
 - One listing finds them: `ls storage/pendientes/`. Open the marker, then the PDF in `storage/hojas/YYYY/`, and
   answer the consumer manually (the sheet holds their e-mail).
 - When handled, delete the marker. Never delete the sheet or `storage/counter.dat`.
-- If the archive itself cannot be written, the endpoint answers 500, nothing is e-mailed and an `ERROR ... NOT archived`
-  line is logged. If the counter is missing/corrupt it is rebuilt from the highest archived sheet of the year;
+- If the archive itself cannot be written, the endpoint answers 500, nothing is e-mailed, the visitor's rate-limit slot is
+  released (retrying the same text is accepted) and an `ERROR ... NOT archived` line is logged. The number already drawn is
+  skipped, never reused. If the counter is missing/corrupt it is rebuilt from the highest archived sheet of the year;
   if it cannot be read or written the endpoint fails closed (500, no number issued).
+
+## Kill switch
+Create the empty file `storage/.disabled` to stop accepting claims at once: `token.php` and `reclamo.php` answer 503 and the
+form tells the visitor to write to the mailbox. `storage/` is server-only, so deploys never create or remove it. Delete the
+file to resume. See DEPLOY.md.
+
+## Local test environment
+`docker-compose.libro-test.yml` + `node tools/libro-e2e.mjs --fresh` run this api on Apache + PHP 8.1 (dry-run mail, unreachable
+SMTP, missing SMTP secret, production limits). See `docker/README.md`. The repo's `config.php` is never modified: the container
+patches its own copy.
 
 ## Fonts
 `fonts/*.ttf` are Latin (cp1252) subsets of Montserrat and Open Sans (SIL OFL, as in the site kit).
